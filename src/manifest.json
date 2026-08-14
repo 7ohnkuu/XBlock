@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "default_locale": "en",
+  "name": "__MSG_extName__",
+  "version": "1.0.0",
+  "description": "__MSG_extDesc__",
+  "permissions": ["storage"],
+  "host_permissions": ["https://x.com/*", "https://twitter.com/*", "https://www.x.com/*", "https://www.twitter.com/*"],
+  "background": {
+    "service_worker": "background/sw.js"
+  },
+  "action": {
+    "default_title": "XBlock",
+    "default_icon": {
+      "16": "icons/16.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+  "options_ui": {
+    "page": "options/index.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://www.x.com/*",
+        "https://twitter.com/*",
+        "https://www.twitter.com/*"
+      ],
+      "js": ["content/boot.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

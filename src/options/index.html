@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>XBlock</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="mast">
+      <div class="mast-mark">XB</div>
+      <div>
+        <p class="kicker" data-i18n="opt.kicker"></p>
+        <h1>XBlock</h1>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel" id="about">
+        <h2 data-i18n="opt.aboutTitle"></h2>
+        <p data-i18n="opt.aboutBody"></p>
+        <p class="risk" data-i18n="opt.risk"></p>
+      </section>
+
+      <section class="panel">
+        <h2 data-i18n="opt.language"></h2>
+        <label class="lang-label">
+          <select id="ui-locale">
+            <option value="auto" data-i18n="opt.lang.auto"></option>
+            <option value="zh-Hant" data-i18n="opt.lang.zh"></option>
+            <option value="en" data-i18n="opt.lang.en"></option>
+          </select>
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2 data-i18n="opt.toggles"></h2>
+        <div class="toggles" id="toggles"></div>
+      </section>
+
+      <section class="panel">
+        <h2 data-i18n="opt.wordlists"></h2>
+        <div class="toolbar">
+          <label><span data-i18n="opt.category"></span>
+            <select id="word-cat">
+              <option value="drain" data-i18n="opt.cat.drain"></option>
+              <option value="scamAdult" data-i18n="opt.cat.scamAdult"></option>
+              <option value="custom" data-i18n="opt.cat.custom"></option>
+              <option value="domains" data-i18n="opt.cat.domains"></option>
+            </select>
+          </label>
+          <input id="word-search" type="search" data-i18n-placeholder="opt.wordSearch" />
+          <form id="word-add">
+            <input id="word-new" type="text" data-i18n-placeholder="opt.wordNew" required />
+            <button type="submit" data-i18n="opt.wordAdd"></button>
+          </form>
+          <button type="button" id="word-reset" class="danger-ghost" data-i18n="opt.wordReset"></button>
+        </div>
+        <ul class="chips" id="word-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2 data-i18n="opt.lists"></h2>
+        <div class="tabs" id="list-tabs">
+          <button type="button" data-table="pendingBlock" class="on" data-i18n="opt.list.pending"></button>
+          <button type="button" data-table="blockedMirror" data-i18n="opt.list.blocked"></button>
+          <button type="button" data-table="exempt" data-i18n="opt.list.exempt"></button>
+        </div>
+        <ul class="rows" id="list-rows"></ul>
+      </section>
+
+      <section class="panel">
+        <h2 data-i18n="opt.io"></h2>
+        <p class="hint" data-i18n="opt.ioHint"></p>
+        <div class="io">
+          <div class="io-block">
+            <h3 data-i18n="opt.export"></h3>
+            <button type="button" data-export="xblock-wordlist" data-i18n="opt.exportWords"></button>
+            <button type="button" data-export="xblock-lists" data-i18n="opt.exportLists"></button>
+            <button type="button" data-export="xblock-backup" data-i18n="opt.exportBackup"></button>
+          </div>
+          <div class="io-block">
+            <h3 data-i18n="opt.import"></h3>
+            <label><span data-i18n="opt.strategy"></span>
+              <select id="import-strategy">
+                <option value="merge" data-i18n="opt.merge"></option>
+                <option value="fill" data-i18n="opt.fill"></option>
+                <option value="replace" data-i18n="opt.replace"></option>
+              </select>
+            </label>
+            <label class="file">
+              <span data-i18n="opt.chooseFile"></span>
+              <input id="import-file" type="file" accept=".json,.txt,application/json,text/plain" />
+            </label>
+            <p class="status" id="import-status" role="status"></p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
