@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 — 2026-08-14
+
+Classifier tighten from the first audit.
+
+- Extra @mentions stay in the tray; they no longer auto-hide or open the near-dup gate
+- Cross-post fingerprints strip @handles on both read and write
+- Farm handles (Latin + 5+ digits, including `_` / leading digits) are a weak signal: tray only unless another spam hit fires
+
 ## 1.0.0 — 2026-08-14
 
 First public release.

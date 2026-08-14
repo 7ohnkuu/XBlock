@@ -4,11 +4,11 @@ Hide promo, copy-paste farm, and adult/scam reply bots on X status pages. Confir
 
 Design contract: [DESIGN.md](DESIGN.md).
 
-Current release: **v1.0.0**.
+Current release: **v1.0.1**.
 
 ## Install (Chrome, unpacked)
 
-From a [GitHub Release](https://github.com/7ohnkuu/XBlock/releases): download `xblock-1.0.0.zip`, unzip it.
+From a [GitHub Release](https://github.com/7ohnkuu/XBlock/releases): download `xblock-1.0.1.zip`, unzip it.
 
 Or build from source:
 
