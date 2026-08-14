@@ -1,4 +1,11 @@
-/** Western letters + a long digit tail. Common farm handle, not unique to any one account. */
+/**
+ * Weak farm-handle shape: 3+ Latin letters and a run of 5+ digits.
+ * Underscores, hyphens, extra letters, and leading digits are allowed.
+ * Not enough to auto-hide on its own.
+ */
 export function isDigitFarmHandle(handle: string): boolean {
-  return /^[A-Za-z]{3,}\d{5,}$/.test(handle.replace(/^@/, ""))
+  const h = handle.replace(/^@/, "")
+  if (!/^[A-Za-z0-9_-]+$/.test(h)) return false
+  if (!/\d{5,}/.test(h)) return false
+  return h.replace(/[^A-Za-z]/g, "").length >= 3
 }

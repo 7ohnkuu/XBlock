@@ -28,21 +28,44 @@ test("reply-parent @ only is not mention spam", () => {
   assert.equal(r.byTweetId["2"].suggest, false)
 })
 
-test("two extra @mentions in Chinese reply auto-hides", () => {
+test("two extra @mentions in Chinese reply go to tray, not auto-hide", () => {
   const comments = [
     c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),
     c({ tweetId: "2", handle: "bot", text: "@alice @bob 来看看这个有意思" }),
   ]
   const r = classifyThread("1", comments, defaultState())
-  assert.equal(r.byTweetId["2"].hide, true)
+  assert.equal(r.byTweetId["2"].hide, false)
+  assert.equal(r.byTweetId["2"].suggest, true)
   assert.ok(r.byTweetId["2"].reasons.includes("mention"))
 })
 
-test("same Chinese template with different @accounts is near-dup", () => {
+test("same Chinese template with different @accounts is not near-dup without a spam gate", () => {
   const comments = [
     c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),
     c({ tweetId: "2", handle: "bot1", text: "@alice 这个真的值得你过来看看详情" }),
     c({ tweetId: "3", handle: "bot2", text: "@carol 这个真的值得你过来看看详情" }),
+  ]
+  const r = classifyThread("1", comments, defaultState())
+  assert.equal(r.byTweetId["2"].hide, false)
+  assert.equal(r.byTweetId["3"].hide, false)
+  assert.ok(r.suggestions.some((s) => s.handle === "bot1"))
+})
+
+test("same template plus url gate is near-dup after stripping @", () => {
+  const comments = [
+    c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),
+    c({
+      tweetId: "2",
+      handle: "bot1",
+      text: "@alice 详情请看这里领取资料谢谢",
+      urls: ["https://spam.example/a"],
+    }),
+    c({
+      tweetId: "3",
+      handle: "bot2",
+      text: "@carol 详情请看这里领取资料谢谢",
+      urls: ["https://spam.example/a"],
+    }),
   ]
   const r = classifyThread("1", comments, defaultState())
   assert.equal(r.byTweetId["2"].hide, true)
@@ -118,7 +141,24 @@ test("farm bait template in body hides without a farm handle", () => {
   assert.equal(r.byTweetId["2"].hide, true)
 })
 
-test("CJK display name plus 5-digit latin handle hides with a clean short name", () => {
+test("farm handle plus clean CJK name is tray-only without a second spam signal", () => {
+  const comments = [
+    c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),
+    c({
+      tweetId: "2",
+      handle: "Alice_42567",
+      displayName: "映月",
+      text: "@op 今天天气不错啊朋友",
+      replyTo: ["op"],
+    }),
+  ]
+  const r = classifyThread("1", comments, defaultState())
+  assert.equal(r.byTweetId["2"].hide, false)
+  assert.equal(r.byTweetId["2"].suggest, true)
+  assert.ok(r.byTweetId["2"].matchedTerms.includes("handle_farm"))
+})
+
+test("farm handle plus bait seed still hides", () => {
   const comments = [
     c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),
     c({
@@ -131,7 +171,39 @@ test("CJK display name plus 5-digit latin handle hides with a clean short name",
   ]
   const r = classifyThread("1", comments, defaultState())
   assert.equal(r.byTweetId["2"].hide, true)
-  assert.ok(r.byTweetId["2"].matchedTerms.includes("handle_farm"))
+  assert.ok(r.byTweetId["2"].reasons.includes("scam_adult"))
+})
+
+test("cross-tweet fingerprint matches after stripping different @handles", () => {
+  const first = classifyThread(
+    "aaa",
+    [
+      c({ tweetId: "1", handle: "op", text: "root", isRoot: true, isRootAuthor: true, userId: "op" }),
+      c({
+        tweetId: "2",
+        handle: "bot1",
+        text: "@alice 详情请看这里领取资料谢谢",
+        urls: ["https://spam.example/a"],
+      }),
+    ],
+    defaultState(),
+  )
+  const state = defaultState()
+  state.stats.fingerprints = first.statUpdates.fingerprints
+  const second = classifyThread(
+    "bbb",
+    [
+      c({ tweetId: "9", handle: "op", text: "root", isRoot: true, isRootAuthor: true, userId: "op" }),
+      c({
+        tweetId: "8",
+        handle: "bot2",
+        text: "@carol 详情请看这里领取资料谢谢",
+        urls: ["https://spam.example/b"],
+      }),
+    ],
+    state,
+  )
+  assert.ok(second.byTweetId["8"].reasons.includes("cross_tweet") || second.byTweetId["8"].suggest)
 })
 
 test("display name is matched, not only comment body", () => {

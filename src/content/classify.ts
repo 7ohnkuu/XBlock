@@ -130,7 +130,7 @@ export function classifyThread(
       rootHandle,
     })
     const mentionGate =
-      !!settings.enableMentionSpam && hasCjk(`${c.text} ${c.displayName}`) && extras.length > 0
+      !!settings.enableMentionSpam && hasCjk(c.text) && extras.length > 0
 
     if (drainHits.length || customHits.length) {
       d.hide = true
@@ -150,25 +150,22 @@ export function classifyThread(
       pushReason(d, "drain", ["contact"])
     }
 
+    // Extra @s are tray-only unless another hide signal already fired (DESIGN near-dup gate).
     if (mentionGate) {
       pushReason(d, "mention", extras.slice(0, 3).map((h) => `@${h}`))
       d.suggest = true
-      if (extras.length >= 2) d.hide = true
     }
 
-    // Ads often live only in the profile. Reply card still shows CJK name + latin+digit handle.
-    if (
-      settings.enableScamAdult &&
-      hasCjk(c.displayName) &&
-      isDigitFarmHandle(c.handle)
-    ) {
-      d.hide = true
+    const farm = isDigitFarmHandle(c.handle)
+    const farmCjk = hasCjk(c.displayName) || hasCjk(c.text)
+    if (farm && farmCjk && (settings.enableDrain || settings.enableScamAdult)) {
       pushReason(d, "drain", ["handle_farm"])
+      d.suggest = true
     }
 
     const dupBody = normalizeText(stripMentions(c.text))
-    const gateOpen = d.hide || urlGate || mentionGate
-    if (gateOpen && dupBody.length >= 8) {
+    const spamGate = d.hide || urlGate
+    if (spamGate && dupBody.length >= 8) {
       gated.push({ comment: c, norm: dupBody, grams: charBigrams(dupBody) })
     }
 
@@ -178,8 +175,8 @@ export function classifyThread(
         d.suggest = true
         pushReason(d, "cross_tweet")
       }
-      if (gateOpen && bodyNorm.length >= 8) {
-        const fp = fingerprint(bodyNorm)
+      if (spamGate && dupBody.length >= 8) {
+        const fp = fingerprint(dupBody)
         const fh = stats.fingerprints[fp]
         if (fh && fh.conversationIds.some((id) => id !== conversationId)) {
           d.suggest = true
@@ -229,7 +226,12 @@ export function classifyThread(
     const listed = lookupList(lists, userId, meta.handle)
     if (listed === "exempt") continue
     const hide = hideUsers.has(userId)
-    const suggestOnly = (reasons.includes("cross_tweet") || reasons.includes("mention")) && !hide
+    const terms = termsByUser.get(userId) ?? []
+    const suggestOnly =
+      !hide &&
+      (reasons.includes("cross_tweet") ||
+        reasons.includes("mention") ||
+        terms.includes("handle_farm"))
     if (listed === "pending") {
       pendingSeen.push({
         userId,
