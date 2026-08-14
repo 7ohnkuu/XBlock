@@ -206,6 +206,19 @@ test("cross-tweet fingerprint matches after stripping different @handles", () =>
   assert.ok(second.byTweetId["8"].reasons.includes("cross_tweet") || second.byTweetId["8"].suggest)
 })
 
+test("meetup ad copy in display name hides even with empty body", () => {
+  const comments = [
+    c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),
+    c({ tweetId: "2", handle: "FarmOne11111", displayName: "附近好友约见 真实资源 点我头像", text: "🙂" }),
+    c({ tweetId: "3", handle: "FarmTwo22222", displayName: "love 同城无偿", text: "🙂" }),
+    c({ tweetId: "4", handle: "FarmThree333", displayName: "线下约见入口 真实可靠 点头像约", text: "🙂" }),
+  ]
+  const r = classifyThread("1", comments, defaultState())
+  assert.equal(r.byTweetId["2"].hide, true)
+  assert.equal(r.byTweetId["3"].hide, true)
+  assert.equal(r.byTweetId["4"].hide, true)
+})
+
 test("display name is matched, not only comment body", () => {
   const comments = [
     c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),

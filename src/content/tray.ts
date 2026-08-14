@@ -106,6 +106,7 @@ const CSS = `
   right: 18px;
   bottom: 72px;
   width: min(380px, calc(100vw - 24px));
+  height: min(72vh, calc(100vh - 130px));
   max-height: min(72vh, calc(100vh - 130px));
   display: flex;
   flex-direction: column;
@@ -126,12 +127,28 @@ const CSS = `
   justify-content: space-between;
   align-items: baseline;
 }
-.body {
+.suggest-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+.pending {
+  flex: 0 0 auto;
+  max-height: 68px;
+  overflow: hidden;
+  border-top: 1px solid var(--rule);
+  padding: 6px 16px 8px;
+}
+.pending h3 { margin-bottom: 4px; }
+.pending-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  max-height: 40px;
+  overflow: hidden;
 }
 .brand {
   font-family: "New York", "Iowan Old Style", Palatino, "Songti TC", serif;
@@ -223,6 +240,8 @@ export function mountTray(handlers: TrayHandlers): {
   document.documentElement.appendChild(overlay.host)
 
   let open = false
+  let suggestScrollTop = 0
+  let lastConversationId = ""
   let model: TrayModel = {
     scannedCount: 0,
     hiddenCount: 0,
@@ -254,6 +273,8 @@ export function mountTray(handlers: TrayHandlers): {
 
   const render = () => {
     placeBanner()
+    const prevScroll = overlay.wrap.querySelector<HTMLElement>(".suggest-scroll")
+    if (prevScroll) suggestScrollTop = prevScroll.scrollTop
     overlay.wrap.replaceChildren()
     banner.wrap.replaceChildren()
     const checked = model.suggestions.filter((s) => s.checked).length
@@ -294,7 +315,8 @@ export function mountTray(handlers: TrayHandlers): {
 
     const panel = document.createElement("div")
     panel.className = "panel"
-    trapScroll(panel)
+    panel.addEventListener("wheel", (e) => e.stopPropagation(), { capture: true })
+    panel.addEventListener("touchmove", (e) => e.stopPropagation(), { capture: true })
 
     const head = document.createElement("div")
     head.className = "head"
@@ -334,10 +356,8 @@ export function mountTray(handlers: TrayHandlers): {
       panel.append(p)
     }
 
-    const body = document.createElement("div")
-    body.className = "body"
-    trapScroll(body)
-
+    const sugWrap = document.createElement("div")
+    sugWrap.className = "suggest-scroll"
     const sug = document.createElement("div")
     sug.className = "section"
     sug.innerHTML = `<h3>${t("tray.suggestTitle")}</h3>`
@@ -350,27 +370,28 @@ export function mountTray(handlers: TrayHandlers): {
     for (const s of model.suggestions) {
       sug.append(row(s, true, handlers))
     }
-    body.append(sug)
+    sugWrap.append(sug)
+    trapScroll(sugWrap)
+    sugWrap.addEventListener("scroll", () => {
+      suggestScrollTop = sugWrap.scrollTop
+    })
+    panel.append(sugWrap)
+    requestAnimationFrame(() => {
+      sugWrap.scrollTop = suggestScrollTop
+    })
 
-    const pend = document.createElement("div")
-    pend.className = "section"
-    pend.innerHTML = `<h3>${t("tray.pendingTitle")}</h3>`
-    if (model.pending.length === 0) {
-      const e = document.createElement("div")
-      e.className = "empty"
-      e.textContent = t("tray.pendingEmpty")
-      pend.append(e)
+    if (model.pending.length > 0) {
+      const pend = document.createElement("div")
+      pend.className = "pending"
+      pend.innerHTML = `<h3>${t("tray.pendingTitle")}</h3>`
+      const chips = document.createElement("div")
+      chips.className = "pending-chips"
+      for (const s of model.pending) {
+        chips.append(profileLink(s.handle))
+      }
+      pend.append(chips)
+      panel.append(pend)
     }
-    for (const s of model.pending) {
-      const line = document.createElement("div")
-      line.className = "row"
-      const mid = document.createElement("div")
-      mid.append(profileLink(s.handle), whyLine(s))
-      line.append(document.createElement("span"), mid)
-      pend.append(line)
-    }
-    body.append(pend)
-    panel.append(body)
 
     const actions = document.createElement("div")
     actions.className = "actions"
@@ -414,6 +435,10 @@ export function mountTray(handlers: TrayHandlers): {
         (next.suggestions.length > 0 || next.hiddenCount > 0) &&
         model.suggestions.length === 0 &&
         model.hiddenCount === 0
+      if (next.conversationId !== lastConversationId) {
+        suggestScrollTop = 0
+        lastConversationId = next.conversationId
+      }
       model = next
       if (becameUseful) open = true
       render()
@@ -445,26 +470,31 @@ function whyLine(s: Suggestion): HTMLElement {
   return why
 }
 
-function trapScroll(el: HTMLElement) {
-  const stop = (e: Event) => {
-    e.stopPropagation()
-  }
-  el.addEventListener("wheel", (e) => {
-    e.stopPropagation()
-    const scroller = el.classList.contains("body") ? el : el.querySelector<HTMLElement>(".body")
-    if (!scroller) {
-      e.preventDefault()
-      return
-    }
-    const down = e.deltaY > 0
-    const atTop = scroller.scrollTop <= 0
-    const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
-    if (scroller.scrollHeight <= scroller.clientHeight || (down && atBottom) || (!down && atTop)) {
-      e.preventDefault()
-    }
-  }, { passive: false, capture: true })
-  el.addEventListener("touchmove", stop, { passive: true, capture: true })
-  el.addEventListener("scroll", stop, { passive: true, capture: true })
+function trapScroll(scroller: HTMLElement) {
+  scroller.addEventListener(
+    "wheel",
+    (e) => {
+      e.stopPropagation()
+      const canScroll = scroller.scrollHeight > scroller.clientHeight + 1
+      if (!canScroll) {
+        e.preventDefault()
+        return
+      }
+      const down = e.deltaY > 0
+      const atTop = scroller.scrollTop <= 0
+      const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
+      if ((down && atBottom) || (!down && atTop)) e.preventDefault()
+    },
+    { passive: false, capture: true },
+  )
+  scroller.addEventListener("touchmove", (e) => e.stopPropagation(), { capture: true })
+  scroller.addEventListener(
+    "scroll",
+    (e) => {
+      e.stopPropagation()
+    },
+    { capture: true },
+  )
 }
 
 function row(s: Suggestion, withCheck: boolean, handlers: TrayHandlers): HTMLElement {

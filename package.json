@@ -1,13 +1,13 @@
 {
   "name": "xblock",
-  "version": "1.0.1",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "description": "Hide spam-bot replies on X status pages, then confirm native blocks.",
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "test": "node --experimental-strip-types --test src/shared/path.test.ts src/shared/io.test.ts src/content/classify.test.ts src/content/extract.test.ts src/shared/schema.test.ts src/rules/mentions.test.ts src/shared/i18n.test.ts src/rules/handles.test.ts",
+    "test": "node --experimental-strip-types --test src/shared/path.test.ts src/shared/io.test.ts src/content/classify.test.ts src/content/extract.test.ts src/shared/schema.test.ts src/rules/mentions.test.ts src/shared/i18n.test.ts src/rules/handles.test.ts src/content/context.test.ts",
     "icons": "node scripts/icons.mjs"
   },
   "devDependencies": {

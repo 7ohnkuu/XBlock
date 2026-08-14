@@ -27,6 +27,7 @@ export type Request =
   | { type: "GET_STATE" }
   | { type: "MUTATE"; mutation: Mutation }
   | { type: "EXPORT"; kind: ExportKind }
+  | { type: "OPEN_OPTIONS" }
 
 export type Response =
   | { ok: true; state: StorageRoot }

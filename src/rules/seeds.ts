@@ -41,6 +41,8 @@ export const DRAIN_SEEDS = [
   "主页有",
   "主页见",
   "主页详",
+  "点头像",
+  "点我头像",
 ]
 
 export const SCAM_ADULT_SEEDS = [
@@ -82,6 +84,12 @@ export const SCAM_ADULT_SEEDS = [
   "没人比我玩的开",
   "比我好看的没我骚",
   "比我骚的没我好看",
+  "线下约见",
+  "附近约见",
+  "好友约见",
+  "同城无偿",
+  "真实资源",
+  "点头像约",
 ]
 
 export const DOMAIN_SEEDS = [

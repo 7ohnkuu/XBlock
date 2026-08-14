@@ -3,7 +3,7 @@ import { normalizeText } from "../rules/normalize.ts"
 import type { StorageRoot, Word, Wordlists } from "./types.ts"
 
 export const SCHEMA_VERSION = 1 as const
-export const SEED_REVISION = 6
+export const SEED_REVISION = 7
 export const STATS_TTL_MS = 30 * 24 * 60 * 60 * 1000
 export const WORD_IMPORT_LIMIT = 5000
 export const LIST_IMPORT_LIMIT = 20_000

@@ -114,17 +114,43 @@ chrome.runtime.onInstalled.addListener(() => {
   })
 })
 
+async function openOptionsTab(): Promise<void> {
+  const url = chrome.runtime.getURL("options/index.html")
+  try {
+    const opened = await chrome.tabs.query({ url })
+    const tab = opened[0]
+    if (tab?.id != null) {
+      await chrome.tabs.update(tab.id, { active: true })
+      return
+    }
+  } catch {
+    // query may fail; fall through to create
+  }
+  await chrome.tabs.create({ url, active: true })
+}
+
 chrome.action.onClicked.addListener(() => {
-  void chrome.runtime.openOptionsPage()
+  void openOptionsTab().catch(() => chrome.runtime.openOptionsPage())
 })
 
-chrome.runtime.onMessage.addListener((msg: Request | { type: "OPEN_OPTIONS" }, _s, sendResponse) => {
-  if ((msg as { type: string }).type === "OPEN_OPTIONS") {
-    void chrome.runtime.openOptionsPage()
-    sendResponse({ ok: true })
+chrome.runtime.onMessage.addListener((msg: Request, _s, sendResponse) => {
+  if (msg.type === "OPEN_OPTIONS") {
+    void openOptionsTab()
+      .then(async () => sendResponse({ ok: true, state: await load() } satisfies Response))
+      .catch(async () => {
+        try {
+          await chrome.runtime.openOptionsPage()
+          sendResponse({ ok: true, state: await load() } satisfies Response)
+        } catch (e) {
+          sendResponse({
+            ok: false,
+            error: e instanceof Error ? e.message : "open options failed",
+          } satisfies Response)
+        }
+      })
     return true
   }
-  const req = msg as Request
+  const req = msg
   void enqueue(async () => {
     try {
       if (req.type === "GET_STATE") {
