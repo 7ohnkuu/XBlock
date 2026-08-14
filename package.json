@@ -2,6 +2,7 @@
   "name": "xblock",
   "version": "1.0.6",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Hide spam-bot replies on X status pages, then confirm native blocks.",
   "scripts": {
