@@ -2,7 +2,7 @@
 
 Hide promo, copy-paste farm, and adult/scam reply bots on X status pages. Confirm blocks with X’s own dialog. All data stays on this machine.
 
-Current release: **[v1.0.6](https://github.com/7ohnkuu/XBlock/releases/tag/v1.0.6)**. License: [MIT](LICENSE).
+Current release: **[v1.0.7](https://github.com/7ohnkuu/XBlock/releases/tag/v1.0.7)**. License: [MIT](LICENSE).
 
 ## What it does
 
@@ -15,11 +15,11 @@ On a single `x.com/.../status/...` thread:
 
 It does **not** run on Home, Notifications, Search, or Messages. It does **not** auto-block, auto-report, or call unofficial X APIs. Lists and word banks stay in `chrome.storage.local`; import/export is a file on this computer, not a subscribed blocklist.
 
-Design contract: [DESIGN.md](DESIGN.md). Changes: [CHANGELOG.md](CHANGELOG.md).
+Design contract: [DESIGN.md](DESIGN.md). Domain language: [CONTEXT.md](CONTEXT.md). Changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Install (Chrome, unpacked)
 
-1. Download [`xblock-1.0.6.zip`](https://github.com/7ohnkuu/XBlock/releases/latest) from [Releases](https://github.com/7ohnkuu/XBlock/releases) and unzip it.
+1. Download [`xblock-1.0.7.zip`](https://github.com/7ohnkuu/XBlock/releases/latest) from [Releases](https://github.com/7ohnkuu/XBlock/releases) and unzip it.
 2. Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the unzipped folder (the one that contains `manifest.json`).
 3. Open any status thread. The XBlock chip is at the bottom right. The toolbar icon opens Options (language: follow browser, 中文, or English).
 

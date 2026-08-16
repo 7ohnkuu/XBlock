@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.7 — 2026-08-14
+
+Deepen hide / suggest / ignore, account identity, and the page loop.
+
+- Farm handle is its own tray signal (`farm`), not a drain reason; it still hides when another spam hit fires
+- Handle-only import rows are bind candidates (`unresolved:handle`) and no longer D2-hide until bound to a rest_id
+- Native Block queue no longer pauses hide / suggest; only slow-expand pauses
+- Tray keeps your checks across a rescan; ranking and the 15-cap live next to the tray
+- Classifier no longer re-parses `@` from the body — extract is the source of mentions
+
 ## 1.0.6 — 2026-08-14
 
 Ship since 1.0.1: nickname ads, tray scrolling, Options, and reload safety.
