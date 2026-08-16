@@ -4,6 +4,7 @@ export type Reason =
   | "dup_in_thread"
   | "cross_tweet"
   | "mention"
+  | "farm"
   | "manual"
 
 export type WordSource = "seed" | "user"

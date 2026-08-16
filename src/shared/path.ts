@@ -16,6 +16,15 @@ export function isUnresolvedId(userId: string): boolean {
   return userId.startsWith("unresolved:")
 }
 
+/** Live fiber-miss used `h:`; import used `unresolved:`. Both are bind candidates. */
+export function isBindCandidateId(userId: string): boolean {
+  return userId.startsWith("unresolved:") || userId.startsWith("h:")
+}
+
+export function legacyBindKey(handle: string): string {
+  return `h:${handle.replace(/^@/, "").toLowerCase()}`
+}
+
 /** Same-origin profile path for sampling in a new tab. */
 export function profilePath(handle: string): string {
   return `/${handle.replace(/^@/, "")}`

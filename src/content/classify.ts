@@ -1,5 +1,5 @@
 import { isDigitFarmHandle } from "../rules/handles.ts"
-import { extraMentions, hasCjk, mentionsInText, stripMentions } from "../rules/mentions.ts"
+import { extraMentions, hasCjk, stripMentions } from "../rules/mentions.ts"
 import { charBigrams, fingerprint, hostFromUrl, jaccard, normalizeText } from "../rules/normalize.ts"
 import { lookupList } from "../shared/lists.ts"
 import type {
@@ -12,6 +12,7 @@ import type {
   ThreadResult,
   Word,
 } from "../shared/types.ts"
+import { decide, emptySignals, type Signals } from "./verdict.ts"
 
 const CONTACT_RE: RegExp[] = [
   /t\.me\/[a-z0-9_+/.-]+/i,
@@ -52,23 +53,12 @@ function emptyDecision(): Decision {
   return { hide: false, suggest: false, reasons: [], matchedTerms: [] }
 }
 
-function pushReason(d: Decision, r: Reason, terms: string[] = []) {
-  if (!d.reasons.includes(r)) d.reasons.push(r)
-  for (const t of terms) if (!d.matchedTerms.includes(t)) d.matchedTerms.push(t)
-}
-
-function scoreOf(reasons: Reason[]): number {
-  let s = 0
-  if (reasons.includes("cross_tweet")) s += 40
-  const drain = reasons.includes("drain")
-  const scam = reasons.includes("scam_adult")
-  if (drain && scam) s += 30
-  else if (drain || scam) s += 15
-  if (reasons.includes("mention")) s += 18
-  if (reasons.includes("dup_in_thread")) s += 10
-  if (reasons.includes("manual")) s += 8
-  s += reasons.length
-  return s
+function applyVerdict(d: Decision, listed: ReturnType<typeof lookupList>, signals: Signals) {
+  const v = decide(listed, signals)
+  d.hide = v.layer === "hide"
+  d.suggest = v.layer === "suggest"
+  d.reasons = v.reasons
+  d.matchedTerms = v.matchedTerms
 }
 
 export function classifyThread(
@@ -82,6 +72,7 @@ export function classifyThread(
   const reasonsByUser = new Map<string, Reason[]>()
   const termsByUser = new Map<string, string[]>()
   const metaByUser = new Map<string, { handle: string; displayName: string }>()
+  const signalsByTweet = new Map<string, Signals>()
 
   const mergeUser = (c: CommentRecord, d: Decision) => {
     const prev = reasonsByUser.get(c.userId) ?? []
@@ -103,86 +94,53 @@ export function classifyThread(
     if (c.isRoot || c.isRootAuthor) continue
 
     const listed = lookupList(lists, c.userId, c.handle)
-    if (listed === "exempt") continue
+    const signals = emptySignals()
 
-    if (listed === "pending" || listed === "blocked") {
-      d.hide = true
-      pushReason(d, "manual")
-      mergeUser(c, d)
-      continue
-    }
-
-    // Match display name as well as body: drain/escort ads often live in the name.
-    const bodyNorm = normalizeText(c.text)
-    const nameNorm = normalizeText(c.displayName)
-    const norm = `${nameNorm} ${bodyNorm}`.trim()
-    const drainHits = settings.enableDrain ? hitWords(norm, wordlists.drain) : []
-    const customHits = hitWords(norm, wordlists.custom)
-    const scamHits = settings.enableScamAdult ? hitWords(norm, wordlists.scamAdult) : []
-    const domains = settings.enableDrain || settings.enableScamAdult ? domainHits(c.urls, wordlists.domains) : []
-    const contact = hasContact(norm)
-    const urlGate = c.urls.length > 0 || contact
-    const mentionList = c.mentions.length ? c.mentions : mentionsInText(c.text)
-    const extras = extraMentions({
-      mentions: mentionList,
-      replyTo: c.replyTo ?? [],
-      selfHandle: c.handle,
-      rootHandle,
-    })
-    const mentionGate =
-      !!settings.enableMentionSpam && hasCjk(c.text) && extras.length > 0
-
-    if (drainHits.length || customHits.length) {
-      d.hide = true
-      pushReason(d, "drain", [...drainHits, ...customHits])
-    }
-    if (scamHits.length) {
-      d.hide = true
-      pushReason(d, "scam_adult", scamHits)
-    }
-    if (domains.length) {
-      d.hide = true
-      if (settings.enableScamAdult) pushReason(d, "scam_adult", domains)
-      else pushReason(d, "drain", domains)
-    }
-    if (contact && settings.enableDrain && !d.hide) {
-      d.hide = true
-      pushReason(d, "drain", ["contact"])
-    }
-
-    // Extra @s are tray-only unless another hide signal already fired (DESIGN near-dup gate).
-    if (mentionGate) {
-      pushReason(d, "mention", extras.slice(0, 3).map((h) => `@${h}`))
-      d.suggest = true
-    }
-
-    const farm = isDigitFarmHandle(c.handle)
-    const farmCjk = hasCjk(c.displayName) || hasCjk(c.text)
-    if (farm && farmCjk && (settings.enableDrain || settings.enableScamAdult)) {
-      pushReason(d, "drain", ["handle_farm"])
-      d.suggest = true
-    }
-
-    const dupBody = normalizeText(stripMentions(c.text))
-    const spamGate = d.hide || urlGate
-    if (spamGate && dupBody.length >= 8) {
-      gated.push({ comment: c, norm: dupBody, grams: charBigrams(dupBody) })
-    }
-
-    if (settings.enableCrossTweet) {
-      const uh = stats.userHits[c.userId]
-      if (uh && uh.conversationIds.some((id) => id !== conversationId)) {
-        d.suggest = true
-        pushReason(d, "cross_tweet")
+    if (listed !== "exempt" && listed !== "pending" && listed !== "blocked") {
+      const bodyNorm = normalizeText(c.text)
+      const nameNorm = normalizeText(c.displayName)
+      const norm = `${nameNorm} ${bodyNorm}`.trim()
+      signals.drainHits = settings.enableDrain ? hitWords(norm, wordlists.drain) : []
+      signals.customHits = hitWords(norm, wordlists.custom)
+      signals.scamHits = settings.enableScamAdult ? hitWords(norm, wordlists.scamAdult) : []
+      signals.domainHits =
+        settings.enableDrain || settings.enableScamAdult ? domainHits(c.urls, wordlists.domains) : []
+      signals.domainReason = settings.enableScamAdult ? "scam_adult" : "drain"
+      signals.contact = settings.enableDrain && hasContact(norm)
+      const extras = extraMentions({
+        mentions: c.mentions,
+        replyTo: c.replyTo ?? [],
+        selfHandle: c.handle,
+        rootHandle,
+      })
+      if (settings.enableMentionSpam && hasCjk(c.text) && extras.length > 0) {
+        signals.extraMentions = extras
       }
-      if (spamGate && dupBody.length >= 8) {
-        const fp = fingerprint(dupBody)
-        const fh = stats.fingerprints[fp]
-        if (fh && fh.conversationIds.some((id) => id !== conversationId)) {
-          d.suggest = true
-          pushReason(d, "cross_tweet")
+      const farm = isDigitFarmHandle(c.handle)
+      const farmCjk = hasCjk(c.displayName) || hasCjk(c.text)
+      if (farm && farmCjk && (settings.enableDrain || settings.enableScamAdult)) {
+        signals.farmHandle = true
+      }
+
+      const dupBody = normalizeText(stripMentions(c.text))
+      if (settings.enableCrossTweet) {
+        const uh = stats.userHits[c.userId]
+        if (uh && uh.conversationIds.some((id) => id !== conversationId)) signals.crossTweet = true
+        if ((c.urls.length > 0 || signals.contact || signals.drainHits.length || signals.customHits.length || signals.scamHits.length || signals.domainHits.length) && dupBody.length >= 8) {
+          const fp = fingerprint(dupBody)
+          const fh = stats.fingerprints[fp]
+          if (fh && fh.conversationIds.some((id) => id !== conversationId)) signals.crossTweet = true
         }
       }
+    }
+
+    applyVerdict(d, listed, signals)
+    signalsByTweet.set(c.tweetId, signals)
+
+    const dupBody = normalizeText(stripMentions(c.text))
+    const spamGate = d.hide || c.urls.length > 0 || signals.contact
+    if (listed !== "exempt" && spamGate && dupBody.length >= 8) {
+      gated.push({ comment: c, norm: dupBody, grams: charBigrams(dupBody) })
     }
 
     mergeUser(c, d)
@@ -196,20 +154,22 @@ export function classifyThread(
       if (!same) continue
       for (const g of [a, b]) {
         const d = byTweetId[g.comment.tweetId]
-        d.hide = true
-        pushReason(d, "dup_in_thread")
+        const listed = lookupList(lists, g.comment.userId, g.comment.handle)
+        const signals = signalsByTweet.get(g.comment.tweetId) ?? emptySignals()
+        signals.nearDup = true
+        applyVerdict(d, listed, signals)
         mergeUser(g.comment, d)
       }
     }
   }
 
-  // Hide every comment of a hidden account on this thread.
   for (const c of comments) {
     if (c.isRoot || c.isRootAuthor) continue
     if (lookupList(lists, c.userId, c.handle) === "exempt") continue
     if (hideUsers.has(c.userId)) {
       const d = byTweetId[c.tweetId]
       d.hide = true
+      d.suggest = false
       if (d.reasons.length === 0) {
         const r = reasonsByUser.get(c.userId) ?? ["manual"]
         d.reasons = [...r]
@@ -227,19 +187,15 @@ export function classifyThread(
     if (listed === "exempt") continue
     const hide = hideUsers.has(userId)
     const terms = termsByUser.get(userId) ?? []
-    const suggestOnly =
-      !hide &&
-      (reasons.includes("cross_tweet") ||
-        reasons.includes("mention") ||
-        terms.includes("handle_farm"))
+    const suggestOnly = !hide && (reasons.includes("cross_tweet") || reasons.includes("mention") || reasons.includes("farm"))
     if (listed === "pending") {
       pendingSeen.push({
         userId,
         handle: meta.handle,
         displayName: meta.displayName,
         reasons,
-        matchedTerms: termsByUser.get(userId) ?? [],
-        score: 1000 + scoreOf(reasons),
+        matchedTerms: terms,
+        score: 0,
         checked: false,
       })
       continue
@@ -251,15 +207,11 @@ export function classifyThread(
       handle: meta.handle,
       displayName: meta.displayName,
       reasons,
-      matchedTerms: termsByUser.get(userId) ?? [],
-      score: scoreOf(reasons),
-      checked: true,
+      matchedTerms: terms,
+      score: 0,
+      checked: false,
     })
   }
-  suggestions.sort((a, b) => b.score - a.score)
-  const max = state.settings.maxTray
-  const top = suggestions.slice(0, max)
-  for (const s of top) s.checked = true
 
   const hiddenCommentCount = comments.filter((c) => byTweetId[c.tweetId]?.hide && !c.isRoot).length
 
@@ -302,7 +254,7 @@ export function classifyThread(
   return {
     byTweetId,
     hideUserIds: [...hideUsers],
-    suggestions: top,
+    suggestions,
     pendingSeen,
     hiddenCommentCount,
     parseFailed: false,

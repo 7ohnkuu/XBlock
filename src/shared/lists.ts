@@ -1,21 +1,24 @@
-import { isUnresolvedId, unresolvedKey } from "./path.ts"
+import { isBindCandidateId, legacyBindKey, unresolvedKey } from "./path.ts"
 import type { Lists, ListEntry, PendingEntry, Reason } from "./types.ts"
 
 export type ListKind = "exempt" | "pending" | "blocked" | null
 
-export function lookupList(lists: Lists, userId: string, handle: string): ListKind {
+function boundByHandle(rec: Record<string, ListEntry | PendingEntry>, handle: string): boolean {
   const h = handle.replace(/^@/, "").toLowerCase()
-  const byHandle = (rec: Record<string, ListEntry | PendingEntry>) =>
-    Object.values(rec).some((e) => e.handle.replace(/^@/, "").toLowerCase() === h)
+  return Object.values(rec).some((e) => {
+    if (isBindCandidateId(e.userId) || e.unresolved) return false
+    return e.handle.replace(/^@/, "").toLowerCase() === h
+  })
+}
 
-  if (lists.exempt[userId] || byHandle(lists.exempt)) return "exempt"
-  if (lists.blockedMirror[userId] || byHandle(lists.blockedMirror)) return "blocked"
-  if (lists.pendingBlock[userId] || byHandle(lists.pendingBlock)) return "pending"
-  const u = unresolvedKey(h)
-  if (lists.pendingBlock[u] || lists.blockedMirror[u]) {
-    // unresolved rows must not hide until rebound — caller handles bind
-    return null
-  }
+export function lookupList(lists: Lists, userId: string, handle: string): ListKind {
+  const boundId = !isBindCandidateId(userId)
+  if (boundId && lists.exempt[userId]) return "exempt"
+  if (boundByHandle(lists.exempt, handle)) return "exempt"
+  if (boundId && lists.blockedMirror[userId]) return "blocked"
+  if (boundByHandle(lists.blockedMirror, handle)) return "blocked"
+  if (boundId && lists.pendingBlock[userId]) return "pending"
+  if (boundByHandle(lists.pendingBlock, handle)) return "pending"
   return null
 }
 
@@ -24,9 +27,12 @@ export function findUnresolvedPending(lists: Lists, handle: string): PendingEntr
 }
 
 export function rebindHandle(lists: Lists, handle: string, userId: string, displayName?: string): Lists {
-  if (isUnresolvedId(userId)) return lists
-  const key = unresolvedKey(handle)
-  if (!lists.exempt[key] && !lists.blockedMirror[key] && !lists.pendingBlock[key]) return lists
+  if (isBindCandidateId(userId)) return lists
+  const keys = [unresolvedKey(handle), legacyBindKey(handle)]
+  const has = keys.some(
+    (key) => lists.exempt[key] || lists.blockedMirror[key] || lists.pendingBlock[key],
+  )
+  if (!has) return lists
   const next: Lists = {
     exempt: { ...lists.exempt },
     pendingBlock: { ...lists.pendingBlock },
@@ -34,14 +40,23 @@ export function rebindHandle(lists: Lists, handle: string, userId: string, displ
   }
   const now = Date.now()
   for (const table of ["exempt", "blockedMirror"] as const) {
-    const row = next[table][key]
-    if (row) {
+    for (const key of keys) {
+      const row = next[table][key]
+      if (!row) continue
       delete next[table][key]
-      next[table][userId] = { ...row, userId, handle, displayName: displayName ?? row.displayName, updatedAt: now, unresolved: false }
+      next[table][userId] = {
+        ...row,
+        userId,
+        handle,
+        displayName: displayName ?? row.displayName,
+        updatedAt: now,
+        unresolved: false,
+      }
     }
   }
-  const pending = next.pendingBlock[key]
-  if (pending) {
+  for (const key of keys) {
+    const pending = next.pendingBlock[key]
+    if (!pending) continue
     delete next.pendingBlock[key]
     next.pendingBlock[userId] = {
       ...pending,
@@ -70,6 +85,8 @@ export function applyExempt(
   delete next.blockedMirror[userId]
   delete next.pendingBlock[unresolvedKey(handle)]
   delete next.blockedMirror[unresolvedKey(handle)]
+  delete next.pendingBlock[legacyBindKey(handle)]
+  delete next.blockedMirror[legacyBindKey(handle)]
   return next
 }
 
@@ -114,6 +131,7 @@ export function applyBlocked(
   }
   delete next.pendingBlock[entry.userId]
   delete next.pendingBlock[unresolvedKey(entry.handle)]
+  delete next.pendingBlock[legacyBindKey(entry.handle)]
   next.blockedMirror[entry.userId] = {
     userId: entry.userId,
     handle: entry.handle,

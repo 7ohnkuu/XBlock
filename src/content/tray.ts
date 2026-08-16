@@ -526,6 +526,7 @@ function labelReasons(s: Suggestion): string {
   if (s.reasons.includes("scam_adult")) tags.push(t("reason.scam_adult"))
   if (s.reasons.includes("dup_in_thread")) tags.push(t("reason.dup_in_thread"))
   if (s.reasons.includes("manual")) tags.push(t("reason.manual"))
+  if (s.reasons.includes("farm")) tags.push(t("reason.farm"))
   const terms = s.matchedTerms.slice(0, 2).map(translateTerm).join(" · ")
   return [tags.join(" · "), terms].filter(Boolean).join("  ")
 }

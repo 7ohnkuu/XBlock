@@ -1,12 +1,12 @@
 import { setLocale, t } from "../shared/i18n.ts"
-import { applyPending, rebindHandle } from "../shared/lists.ts"
+import { applyPending } from "../shared/lists.ts"
 import type { Mutation, Request, Response } from "../shared/messages.ts"
 import { isStatusPath, parseConversationId } from "../shared/path.ts"
 import { defaultState } from "../shared/schema.ts"
 import type { StorageRoot, Suggestion, QueueStatus } from "../shared/types.ts"
 import { createBlockQueue } from "./blockQueue.ts"
-import { classifyThread } from "./classify.ts"
 import { isContextError, runtimeAlive } from "./context.ts"
+import { stepPageSession } from "./pageSession.ts"
 import { extractComments, type LiveComment } from "./extract.ts"
 import { createExpander } from "./expand.ts"
 import { applyHides, injectPageStyles, isRevealed, setReveal, teardownHides } from "./hide.ts"
@@ -25,7 +25,6 @@ let tray: ReturnType<typeof mountTray> | null = null
 let domWatch: ReturnType<typeof watchDom> | null = null
 let stopUrlWatch: (() => void) | null = null
 let lastStatKey = ""
-let processPaused = false
 let paintTimer: number | null = null
 let contextDead = false
 
@@ -50,7 +49,6 @@ function extensionAlive(): boolean {
 function onContextDead() {
   if (contextDead) return
   contextDead = true
-  processPaused = true
   try {
     stopUrlWatch?.()
   } catch {
@@ -175,8 +173,6 @@ function paint(immediate = false) {
 
 function setQueueBusy(on: boolean) {
   if (contextDead) return
-  processPaused = on
-  domWatch?.pause(on)
   if (on) expander.pause()
   else expander.resume()
 }
@@ -200,31 +196,26 @@ function process() {
     onContextDead()
     return
   }
-  if (!conversationId || processPaused) return
+  if (!conversationId) return
   setLocale(state.settings.uiLocale)
   const extracted = extractComments(conversationId)
   live = extracted.comments
-  parseFailed = extracted.parseFailed && live.length === 0
-
-  for (const c of live) {
-    if (c.userId.startsWith("h:")) continue
-    const rebound = rebindHandle(state.lists, c.handle, c.userId, c.displayName)
-    if (rebound !== state.lists) {
-      state = { ...state, lists: rebound }
-      void mutate({ op: "rebind", handle: c.handle, userId: c.userId, displayName: c.displayName })
-    }
-  }
-
-  const result = classifyThread(conversationId, live, state)
-  hiddenCount = result.hiddenCommentCount
-  suggestions = result.suggestions.map((s) => {
-    const prev = suggestions.find((p) => p.userId === s.userId)
-    return prev ? { ...s, checked: prev.checked } : s
+  const step = stepPageSession({
+    conversationId,
+    comments: live,
+    state,
+    previousSuggestions: suggestions,
+    parseFailed: extracted.parseFailed && live.length === 0,
   })
-  pendingSeen = result.pendingSeen
-  parseFailed = parseFailed || result.parseFailed
+  state = step.state
+  hiddenCount = step.hiddenCount
+  suggestions = step.suggestions
+  pendingSeen = step.pendingSeen
+  parseFailed = step.parseFailed
 
-  applyHides(live, result.byTweetId, (kind, comment) => {
+  for (const m of step.mutations) void mutate(m)
+
+  applyHides(live, step.byTweetId, (kind, comment) => {
     if (kind === "exempt") void markHuman([comment.userId])
     else {
       void mutate({
@@ -238,15 +229,15 @@ function process() {
     }
   })
 
-  const fpKeys = Object.keys(result.statUpdates.fingerprints).sort().join(",")
-  const uhKeys = Object.keys(result.statUpdates.userHits).sort().join(",")
+  const fpKeys = Object.keys(step.statUpdates.fingerprints).sort().join(",")
+  const uhKeys = Object.keys(step.statUpdates.userHits).sort().join(",")
   const sk = `${conversationId}:${fpKeys}:${uhKeys}`
   if (sk !== lastStatKey && (fpKeys || uhKeys)) {
     lastStatKey = sk
     void mutate({
       op: "recordStats",
-      fingerprints: result.statUpdates.fingerprints,
-      userHits: result.statUpdates.userHits,
+      fingerprints: step.statUpdates.fingerprints,
+      userHits: step.statUpdates.userHits,
     })
   }
 
@@ -412,7 +403,7 @@ async function boot() {
         if (r.ok && extensionAlive()) {
           state = r.state
           setLocale(state.settings.uiLocale)
-          if (conversationId && !processPaused) process()
+          if (conversationId) process()
         }
       })
     }

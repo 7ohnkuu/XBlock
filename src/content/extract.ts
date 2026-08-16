@@ -1,4 +1,5 @@
 import { mentionsInText } from "../rules/mentions.ts"
+import { unresolvedKey } from "../shared/path.ts"
 import type { CommentRecord } from "../shared/types.ts"
 
 export const SEL = {
@@ -231,7 +232,7 @@ export function extractComments(conversationId: string): { comments: LiveComment
     const text = (textEl?.innerText ?? "").trim()
     const tweetId = tweetIdFromArticle(article) ?? `${handle}-${comments.length}`
     const restId = readUserRestId(article)
-    const userId = restId ?? `h:${handle.toLowerCase()}`
+    const userId = restId ?? unresolvedKey(handle)
     const urls = extractUrls(article, text)
     const mentions = mentionsFromTweet(textEl, text)
     const replyTo = replyToFromArticle(article, textEl, handle)

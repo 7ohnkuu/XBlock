@@ -155,7 +155,19 @@ test("farm handle plus clean CJK name is tray-only without a second spam signal"
   const r = classifyThread("1", comments, defaultState())
   assert.equal(r.byTweetId["2"].hide, false)
   assert.equal(r.byTweetId["2"].suggest, true)
+  assert.ok(r.byTweetId["2"].reasons.includes("farm"))
+  assert.ok(!r.byTweetId["2"].reasons.includes("drain"))
   assert.ok(r.byTweetId["2"].matchedTerms.includes("handle_farm"))
+})
+
+test("classify trusts extract mentions and does not re-parse the body", () => {
+  const comments = [
+    c({ tweetId: "1", handle: "op", text: "root post", isRoot: true, isRootAuthor: true, userId: "op" }),
+    c({ tweetId: "2", handle: "bot", text: "@alice 这个角度很有意思啊朋友", mentions: [] }),
+  ]
+  const r = classifyThread("1", comments, defaultState())
+  assert.equal(r.byTweetId["2"].suggest, false)
+  assert.equal(r.byTweetId["2"].hide, false)
 })
 
 test("farm handle plus bait seed still hides", () => {

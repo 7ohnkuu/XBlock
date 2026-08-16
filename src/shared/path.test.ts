@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { isStatusPath, parseConversationId, profilePath } from "./path.ts"
+import { isBindCandidateId, isStatusPath, parseConversationId, profilePath, unresolvedKey } from "./path.ts"
 
 test("status paths", () => {
   assert.equal(isStatusPath("/foo/status/123"), true)
@@ -22,4 +22,11 @@ test("conversation id", () => {
 test("profile path", () => {
   assert.equal(profilePath("@alice_01"), "/alice_01")
   assert.equal(profilePath("alice_01"), "/alice_01")
+})
+
+test("bind candidate keys", () => {
+  assert.equal(unresolvedKey("@Alice"), "unresolved:alice")
+  assert.equal(isBindCandidateId("unresolved:alice"), true)
+  assert.equal(isBindCandidateId("h:alice"), true)
+  assert.equal(isBindCandidateId("12345"), false)
 })
